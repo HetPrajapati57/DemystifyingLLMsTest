@@ -35,6 +35,18 @@ class TransformerRegressionChecks(unittest.TestCase):
         self.config = ModelConfig(d_model=32, n_heads=4, n_layers=2,
                                   vocab_size=50257, max_seq_len=64, dropout=0.0)
 
+    def test_block_stack_dimension_override(self):
+        from model.blocks import BlockStack
+        stack = BlockStack(config=self.config, d_model=64, n_layers=1)
+        self.assertEqual(self.config.d_model, 32)
+        self.assertEqual(len(stack), 1)
+        self.assertEqual(stack(torch.randn(2, 3, 64)).shape, (2, 3, 64))
+
+    def test_multidimensional_layer_norm(self):
+        x = torch.randn(2, 3, 4)
+        norm = LayerNorm(normalized_shape=[3, 4])
+        torch.testing.assert_close(norm(x), F.layer_norm(x, (3, 4), norm.weight, norm.bias, norm.eps))
+
     def test_attention_reference(self):
         q, k, v = [torch.randn(2, 4, 5, 8) for _ in range(3)]
         mask = create_causal_mask(5)

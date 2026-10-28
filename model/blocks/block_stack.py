@@ -5,6 +5,7 @@ Status: Clean
 """
 
 from typing import Optional, Any
+from copy import copy
 import torch
 import torch.nn as nn
 
@@ -31,10 +32,16 @@ class BlockStack(nn.Module):
         d_model: Optional[int] = None
     ):
         super().__init__()
-        cfg = _resolve_config(config)
+        cfg = copy(_resolve_config(config))
+        if d_model is not None:
+            cfg.d_model = d_model
+            if d_model % cfg.n_heads:
+                raise ValueError('d_model must be divisible by n_heads')
+            cfg.d_head = d_model // cfg.n_heads
+            cfg.d_ffn = d_model * getattr(cfg, 'ffn_multiplier', 4)
 
-        self.n_layers = n_layers or getattr(cfg, "n_layers", 12)
-        self.d_model = d_model or getattr(cfg, "d_model", 768)
+        self.n_layers = n_layers if n_layers is not None else getattr(cfg, "n_layers", 12)
+        self.d_model = cfg.d_model
 
         self.blocks = nn.ModuleList([
             TransformerBlock(config=cfg, layer_idx=i)
