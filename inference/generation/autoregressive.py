@@ -12,7 +12,8 @@ def autoregressive_generate(model: torch.nn.Module, input_ids: torch.Tensor,
         raise ValueError("input_ids must contain a nonempty batch of token sequences")
     if max_new_tokens < 0:
         raise ValueError("max_new_tokens must be non-negative")
-    model.eval()
+    if hasattr(model, 'eval'):
+        model.eval()
     generated = input_ids.clone()
     finished = torch.zeros(generated.size(0), dtype=torch.bool, device=generated.device)
     config = getattr(model, "config", None)

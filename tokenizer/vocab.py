@@ -47,3 +47,10 @@ class Vocabulary:
 
     def __contains__(self, token: str) -> bool:
         return token in self._token_to_id
+
+
+# Standalone encode/decode helpers share one explicit default vocabulary.
+_DEFAULT_VOCAB = Vocabulary()
+
+def get_default_vocab() -> Vocabulary:
+    return _DEFAULT_VOCAB

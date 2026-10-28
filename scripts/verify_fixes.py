@@ -47,6 +47,24 @@ class TransformerRegressionChecks(unittest.TestCase):
         norm = LayerNorm(normalized_shape=[3, 4])
         torch.testing.assert_close(norm(x), F.layer_norm(x, (3, 4), norm.weight, norm.bias, norm.eps))
 
+    def test_standalone_tokenizer_roundtrip(self):
+        from tokenizer.encoding import encode
+        from tokenizer.decoding import decode
+        text = "the quick brown fox jumps over the lazy dog"
+        self.assertEqual(decode(encode(text)), text)
+
+    def test_callable_generation(self):
+        model = FullTransformerModel(self.config).eval()
+        def forward(ids):
+            return model(ids)
+        ids = torch.tensor([[2, 3]])
+        torch.testing.assert_close(autoregressive_generate(forward, ids, 2),
+                                   autoregressive_generate(model, ids, 2))
+
+    def test_repetition_ignores_tokens_outside_logits_vocabulary(self):
+        logits = torch.randn(1, 10)
+        torch.testing.assert_close(apply_repetition_penalty(logits, [101, -1], 2), logits)
+
     def test_attention_reference(self):
         q, k, v = [torch.randn(2, 4, 5, 8) for _ in range(3)]
         mask = create_causal_mask(5)
@@ -79,7 +97,7 @@ class TransformerRegressionChecks(unittest.TestCase):
         nucleus = apply_top_p(logits, 0.7)
         self.assertEqual(torch.isfinite(nucleus).tolist(),
                          [[False, True, False, True], [True, False, False, False]])
-        torch.testing.assert_close(apply_temperature(logits, 2), logits / 2)
+        torch.testing.assert_close(apply_temperature(logits, 2), torch.softmax(logits / 2, dim=-1))
         self.assertEqual(Sampler(temperature=0).sample(logits).tolist(), [1, 0])
 
     def test_repetition_is_sign_aware_and_per_sequence(self):

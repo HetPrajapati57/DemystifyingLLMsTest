@@ -1,11 +1,11 @@
 """Module implementation."""
 from typing import List, Dict, Tuple, Optional
-from .vocab import Vocabulary
+from .vocab import Vocabulary, get_default_vocab
 
 
 class BPETokenizer:
     def __init__(self, vocab: Optional[Vocabulary] = None, merges: Optional[List[Tuple[str, str]]] = None):
-        self.vocab = vocab or Vocabulary()
+        self.vocab = vocab if vocab is not None else get_default_vocab()
         self.merges: List[Tuple[str, str]] = merges or []
         self.vocab_size = 50257
 

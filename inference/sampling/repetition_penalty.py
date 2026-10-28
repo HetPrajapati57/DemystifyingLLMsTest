@@ -16,6 +16,7 @@ def apply_repetition_penalty(logits: torch.Tensor,
         return result
     if history.dim() <= 1:
         ids = history.unique()
+        ids = ids[(ids >= 0) & (ids < logits.size(-1))]
         values = result[..., ids]
         result[..., ids] = torch.where(values < 0, values * penalty, values / penalty)
     else:
@@ -23,6 +24,7 @@ def apply_repetition_penalty(logits: torch.Tensor,
             raise ValueError("Batched histories must match the logits batch")
         for row in range(logits.size(0)):
             ids = history[row].unique()
+            ids = ids[(ids >= 0) & (ids < logits.size(-1))]
             values = result[row, ids]
             result[row, ids] = torch.where(values < 0, values * penalty, values / penalty)
     return result
