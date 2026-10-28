@@ -33,26 +33,29 @@ class RequestHandler:
         max_tokens = request_body.get("max_tokens", 16)
         temperature = request_body.get("temperature", 0.8)
 
+        if not isinstance(prompt, str) or not isinstance(max_tokens, int) or max_tokens < 0:
+            raise ValueError('prompt must be text and max_tokens a non-negative integer')
+
         # Tokenize prompt
         if self.tokenizer is not None and hasattr(self.tokenizer, "encode"):
             prompt_tokens = self.tokenizer.encode(prompt)
         else:
             prompt_tokens = [ord(c) for c in prompt]
 
-        # Generate continuation
-        if self.engine is not None and hasattr(self.engine, "generate_tokens"):
+        # Generate real continuation tokens and decode only the completion.
+        if self.engine is None:
+            raise RuntimeError("No inference engine configured")
+        if hasattr(self.engine, "generate_tokens"):
             generated_tokens = self.engine.generate_tokens(
-                prompt_tokens=prompt_tokens,
-                max_new_tokens=max_tokens,
-                temperature=temperature
+                prompt_tokens=prompt_tokens, max_new_tokens=max_tokens,
+                temperature=temperature,
+                top_k=request_body.get("top_k"), top_p=request_body.get("top_p")
             )
-        elif self.engine is not None and hasattr(self.engine, "generate"):
-            raw_gen = self.engine.generate(prompt, tokenizer=self.tokenizer, max_new_tokens=max_tokens)
-            generated_tokens = prompt_tokens + [101, 102]
+            completion_tokens = generated_tokens[len(prompt_tokens):]
+            response_text = (self.tokenizer.decode(completion_tokens) if self.tokenizer is not None
+                             else "".join(chr(token) for token in completion_tokens))
         else:
-            generated_tokens = prompt_tokens + [prompt_tokens[-1] + 1 if prompt_tokens else 42]
-
-        response_text = generated_tokens
+            raise TypeError("Inference engine must implement generate_tokens")
 
         return {
             "id": f"cmpl-{uuid.uuid4().hex[:12]}",
@@ -64,7 +67,7 @@ class RequestHandler:
                 {
                     "text": response_text,
                     "index": 0,
-                    "finish_reason": "length"
+                    "finish_reason": "length" if len(completion_tokens) >= max_tokens else "stop"
                 }
             ],
             "usage": {
