@@ -65,6 +65,19 @@ class TransformerRegressionChecks(unittest.TestCase):
         logits = torch.randn(1, 10)
         torch.testing.assert_close(apply_repetition_penalty(logits, [101, -1], 2), logits)
 
+    def test_small_model_text_generation(self):
+        config = ModelConfig(d_model=32, n_heads=4, n_layers=2,
+                             vocab_size=1000, max_seq_len=128, dropout=0)
+        model = FullTransformerModel(config)
+        tokenizer = BPETokenizer()
+        generation = InferenceConfig(max_new_tokens=3, temperature=0)
+        engine = InferenceEngine(model=model, inference_config=generation)
+        text = engine.generate("hello world", tokenizer=tokenizer)
+        self.assertTrue(text.startswith("hello world"))
+        pipeline = ServingPipeline(model=model, tokenizer=tokenizer, inference_config=generation)
+        self.assertEqual(pipeline.process("hello world"), text)
+        self.assertEqual(engine.model_config.vocab_size, 1000)
+
     def test_attention_reference(self):
         q, k, v = [torch.randn(2, 4, 5, 8) for _ in range(3)]
         mask = create_causal_mask(5)

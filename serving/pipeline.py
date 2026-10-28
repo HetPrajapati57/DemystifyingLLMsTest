@@ -11,7 +11,7 @@ class ServingPipeline:
                  config: Optional[ModelConfig] = None,
                  inference_config: Optional[InferenceConfig] = None,
                  device: Optional[Union[str, torch.device]] = None):
-        self.config = config or ModelConfig()
+        self.config = config or getattr(model, "config", None) or ModelConfig()
         self.inference_config = inference_config or InferenceConfig()
         self.device = torch.device(device) if device is not None else torch.device("cpu")
         if tokenizer is None:

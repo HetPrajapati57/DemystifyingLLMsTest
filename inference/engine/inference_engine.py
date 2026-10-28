@@ -38,7 +38,7 @@ class InferenceEngine:
                  inference_config: Optional[InferenceConfig] = None,
                  model: Optional[Any] = None,
                  device: Optional[Union[str, torch.device]] = None):
-        self.model_config = model_config or ModelConfig()
+        self.model_config = model_config or getattr(model, "config", None) or ModelConfig()
         self.inference_config = inference_config or InferenceConfig()
         self.inference_config.validate()
         self.device = torch.device(device) if device is not None else torch.device("cpu")
@@ -102,6 +102,13 @@ class InferenceEngine:
         if tokenizer is None:
             from tokenizer import BPETokenizer
             tokenizer = BPETokenizer()
-        prompt_ids = tokenizer.encode(prompt)
+        # BOS is optional for text generation. Do not inject a special token
+        # belonging to a different vocabulary into a smaller supplied model.
+        bos_id = getattr(getattr(tokenizer, "vocab", None), "bos_token_id", None)
+        encode_parameters = inspect.signature(tokenizer.encode).parameters
+        if bos_id is not None and bos_id >= self.model_config.vocab_size and "add_bos" in encode_parameters:
+            prompt_ids = tokenizer.encode(prompt, add_bos=False)
+        else:
+            prompt_ids = tokenizer.encode(prompt)
         output_ids = self.generate_tokens(prompt_ids, max_new_tokens=max_new_tokens, **kwargs)
         return tokenizer.decode(output_ids)
