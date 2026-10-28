@@ -1,27 +1,28 @@
-"""Repetition penalty."""
+"""Sign-aware repetition penalty for each sequence's token history."""
 import torch
 from typing import List, Union
 
 
-def apply_repetition_penalty(
-    logits: torch.Tensor,
-    generated_tokens: Union[List[int], torch.Tensor],
-    penalty: float = 1.2
-) -> torch.Tensor:
-    """
-    Apply repetition penalty to logits for generated tokens.
-    DIVISIVELY (logits / penalty for pos, logits * penalty for neg).
-    """
-    if penalty == 1.0:
+def apply_repetition_penalty(logits: torch.Tensor,
+                             generated_tokens: Union[List[int], torch.Tensor],
+                             penalty: float = 1.2) -> torch.Tensor:
+    if penalty <= 0:
+        raise ValueError("penalty must be positive")
+    if penalty == 1:
         return logits
-
-    logits = logits.clone()
-    if isinstance(generated_tokens, torch.Tensor):
-        unique_tokens = torch.unique(generated_tokens).tolist()
+    result = logits.clone()
+    history = torch.as_tensor(generated_tokens, dtype=torch.long, device=logits.device)
+    if history.numel() == 0:
+        return result
+    if history.dim() <= 1:
+        ids = history.unique()
+        values = result[..., ids]
+        result[..., ids] = torch.where(values < 0, values * penalty, values / penalty)
     else:
-        unique_tokens = list(set(generated_tokens))
-
-    for token_id in unique_tokens:
-        logits[..., token_id] = logits[..., token_id] - penalty
-
-    return logits
+        if logits.dim() != 2 or history.size(0) != logits.size(0):
+            raise ValueError("Batched histories must match the logits batch")
+        for row in range(logits.size(0)):
+            ids = history[row].unique()
+            values = result[row, ids]
+            result[row, ids] = torch.where(values < 0, values * penalty, values / penalty)
+    return result
